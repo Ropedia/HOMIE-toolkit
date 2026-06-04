@@ -55,17 +55,17 @@ def main():
     parser.add_argument("--stereo_right", type=str, default="stereo_right.mp4", help="Stereo right video file name")
     parser.add_argument("--fisheye_pattern", type=str, default="fisheye_{cam}.mp4", help="Fisheye video file name pattern ('{cam}' -> cam0..cam3)")
 
-    # show_* (align with run_vis.py)
-    parser.add_argument("--show_fisheye", action="store_true", default=True, help="Show fisheye camera images")
-    parser.add_argument("--show_stereo", action="store_true", default=True, help="Show stereo camera images")
-    parser.add_argument("--show_depth_colormap", action="store_true", default=True, help="Show depth colormap")
-    parser.add_argument("--show_depth_points", action="store_true", default=True, help="Show depth point cloud in 3D")
-    parser.add_argument("--show_skeleton", action="store_true", default=True, help="Show hand and body skeleton")
-    parser.add_argument("--show_frustum", action="store_true", default=True, help="Show camera frustums")
-    parser.add_argument("--show_contacts", action="store_true", default=True, help="Show foot contacts")
-    parser.add_argument("--show_imu", action="store_true", default=True, help="Show IMU accel/gyro time series")
-    parser.add_argument("--show_caption", action="store_true", default=True, help="Show caption panels (from annotation.hdf5 caption/captions dataset only)")
-    parser.add_argument("--show_slam_pc", action="store_true", default=True, help="Show SLAM point cloud (static)")
+    # show_* (align with run_vis.py); each supports a --no-<flag> variant to disable.
+    parser.add_argument("--show_fisheye", action=argparse.BooleanOptionalAction, default=True, help="Show fisheye camera images")
+    parser.add_argument("--show_stereo", action=argparse.BooleanOptionalAction, default=True, help="Show stereo camera images")
+    parser.add_argument("--show_depth_colormap", action=argparse.BooleanOptionalAction, default=True, help="Show depth colormap")
+    parser.add_argument("--show_depth_points", action=argparse.BooleanOptionalAction, default=True, help="Show depth point cloud in 3D")
+    parser.add_argument("--show_skeleton", action=argparse.BooleanOptionalAction, default=True, help="Show hand and body skeleton")
+    parser.add_argument("--show_frustum", action=argparse.BooleanOptionalAction, default=True, help="Show camera frustums")
+    parser.add_argument("--show_contacts", action=argparse.BooleanOptionalAction, default=True, help="Show foot contacts")
+    parser.add_argument("--show_imu", action=argparse.BooleanOptionalAction, default=True, help="Show IMU accel/gyro time series")
+    parser.add_argument("--show_caption", action=argparse.BooleanOptionalAction, default=True, help="Show caption panels (from annotation.hdf5 caption/captions dataset only)")
+    parser.add_argument("--show_slam_pc", action=argparse.BooleanOptionalAction, default=True, help="Show SLAM point cloud (static)")
     
     args = parser.parse_args()
 
