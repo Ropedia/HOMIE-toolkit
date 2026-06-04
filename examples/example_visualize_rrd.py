@@ -66,8 +66,8 @@ def main():
     FPS = 10.0
     LOG_IMAGE_SCALE = 0.5
     MAX_DEPTH_POINTS = 20000
-    NEAR_PLANE = 0.0
-    FAR_PLANE = 4.0
+    NEAR_PLANE = 0.6
+    FAR_PLANE = 5.0
 
     # Print arguments in order, with colors (ANSI)
     _c = lambda s, code: f"\033[{code}m{s}\033[0m"

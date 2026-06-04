@@ -3,6 +3,7 @@ Caption loading from annotation.hdf5 for Xperience-10M.
 """
 
 import json
+import re
 from pathlib import Path
 
 import h5py
@@ -25,6 +26,45 @@ def _find_nearest_frame_index(timestamp_int, name_to_index):
     return best_idx
 
 
+# Values at/above this are treated as device timestamps (~1e13), not sequential frame indices.
+_TIMESTAMP_THRESHOLD = 100_000_000
+
+
+def _resolve_frame_ref(ref, name_to_index, N):
+    """Resolve a caption frame reference to a 0-based frame index.
+
+    Caption data references frames in several conventions:
+      * exact image name / stem match (timestamp-style img_names, e.g. "75294505147569.jpg")
+      * sequential names "frame_000123" produced by the captioning pipeline (1-based)
+      * bare integer / digit-string sequential indices (1-based, e.g. 51, "11")
+      * large integer device timestamps (nearest-frame fallback)
+    Returns -1 if it cannot be resolved.
+    """
+    if ref is None:
+        return -1
+    s = str(ref).strip()
+    if not s:
+        return -1
+    # 1) Exact image name / stem match (timestamp-style img_names).
+    if s in name_to_index:
+        return name_to_index[s]
+    stem = s.rsplit(".", 1)[0] if "." in s else s
+    if stem in name_to_index:
+        return name_to_index[stem]
+    # 2) "frame_000123" -> 1-based sequential index.
+    m = re.search(r"frame_(\d+)", s)
+    if m:
+        return min(max(int(m.group(1)) - 1, 0), N - 1)
+    # 3) Bare integer: small -> 1-based sequential index; large -> device timestamp.
+    digits = stem[1:] if stem.startswith("-") else stem
+    if digits.isdigit():
+        val = int(stem)
+        if val >= _TIMESTAMP_THRESHOLD:
+            return _find_nearest_frame_index(val, name_to_index)
+        return min(max(val - 1, 0), N - 1)
+    return -1
+
+
 def _build_frame_info_map_from_caption(data, name_to_index, N):
     """Build frame_info_map and segment_boundaries from caption segments."""
     frame_info_map = {}
@@ -38,21 +78,20 @@ def _build_frame_info_map_from_caption(data, name_to_index, N):
         actions = seg.get("Current Action", [])
         action_ranges = []
         for action in actions:
-            start_name = action.get("start_frame_name")
-            end_name = action.get("end_frame_name")
-            if start_name is None and action.get("start_frame") is not None:
-                start_name = str(action["start_frame"])
-            if end_name is None and action.get("end_frame") is not None:
-                end_name = str(action["end_frame"])
+            start_ref = action.get("start_frame_name")
+            end_ref = action.get("end_frame_name")
+            if not start_ref and action.get("start_frame") is not None:
+                start_ref = action["start_frame"]
+            if not end_ref and action.get("end_frame") is not None:
+                end_ref = action["end_frame"]
             label = action.get("label", "")
             desc = action.get("description", "")
-            if start_name and end_name:
-                si = name_to_index.get(start_name, -1)
-                ei = name_to_index.get(end_name, -1)
-                if (si < 0 or ei < 0) and start_name.isdigit():
-                    si = _find_nearest_frame_index(int(start_name), name_to_index) if si < 0 else si
-                    ei = _find_nearest_frame_index(int(end_name), name_to_index) if ei < 0 else ei
+            if start_ref is not None and end_ref is not None:
+                si = _resolve_frame_ref(start_ref, name_to_index, N)
+                ei = _resolve_frame_ref(end_ref, name_to_index, N)
                 if si >= 0 and ei >= 0:
+                    if ei < si:
+                        si, ei = ei, si
                     action_ranges.append((si, ei, label, desc))
         action_ranges.sort(key=lambda x: x[0])
         indices_in_segment = set()
@@ -67,9 +106,7 @@ def _build_frame_info_map_from_caption(data, name_to_index, N):
         objects_map = seg.get("objects", {})
         interaction_map = seg.get("interaction", {})
         for fname in set(objects_map.keys()) | set(interaction_map.keys()):
-            idx = name_to_index.get(fname, -1)
-            if idx < 0 and fname.isdigit():
-                idx = _find_nearest_frame_index(int(fname), name_to_index)
+            idx = _resolve_frame_ref(fname, name_to_index, N)
             if idx < 0:
                 continue
             indices_in_segment.add(idx)
@@ -82,23 +119,10 @@ def _build_frame_info_map_from_caption(data, name_to_index, N):
             if fname in interaction_map:
                 frame_info_map[idx]["interaction"] = interaction_map[fname]
         if indices_in_segment:
-            seg_start = seg_end = -1
-            try:
-                sf, ef = int(start_frame), int(end_frame)
-                if 0 <= sf < N and 0 <= ef < N:
-                    seg_start = sf
-                    seg_end = min(ef, N - 1)
-                    seg_start = min(seg_start, seg_end)
-            except (TypeError, ValueError):
-                pass
-            if seg_start < 0 or seg_end < 0:
-                seg_start_key, seg_end_key = str(start_frame), str(end_frame)
-                seg_start = name_to_index.get(seg_start_key, -1) if seg_start < 0 else seg_start
-                seg_end = name_to_index.get(seg_end_key, -1) if seg_end < 0 else seg_end
-                if seg_start < 0 and seg_start_key.isdigit():
-                    seg_start = _find_nearest_frame_index(int(seg_start_key), name_to_index)
-                if seg_end < 0 and seg_end_key.isdigit():
-                    seg_end = _find_nearest_frame_index(int(seg_end_key), name_to_index)
+            seg_start = _resolve_frame_ref(start_frame, name_to_index, N)
+            seg_end = _resolve_frame_ref(end_frame, name_to_index, N)
+            if seg_start >= 0 and seg_end >= 0 and seg_end < seg_start:
+                seg_start, seg_end = seg_end, seg_start
             if seg_start < 0:
                 seg_start = min(indices_in_segment)
             if seg_end < 0:
@@ -124,8 +148,8 @@ def _build_frame_info_map_from_caption(data, name_to_index, N):
                         _, _, label, desc = action_ranges[0]
                         frame_info_map[idx]["action_label"] = label
                         frame_info_map[idx]["action_desc"] = desc
-            frames_with_objects = sorted([name_to_index[f] for f in objects_map.keys() if f in name_to_index])
-            frames_with_interaction = sorted([name_to_index[f] for f in interaction_map.keys() if f in name_to_index])
+            frames_with_objects = sorted({i for i in (_resolve_frame_ref(f, name_to_index, N) for f in objects_map.keys()) if i >= 0})
+            frames_with_interaction = sorted({i for i in (_resolve_frame_ref(f, name_to_index, N) for f in interaction_map.keys()) if i >= 0})
             for idx in range(seg_start, seg_end + 1):
                 if idx not in frame_info_map:
                     frame_info_map[idx] = {}
