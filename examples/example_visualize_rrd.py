@@ -49,6 +49,12 @@ def main():
     parser.add_argument("--output_rrd", type=str, default="vis.rrd", help="Output .rrd path")
     parser.add_argument("--num_frames", type=int, default=-1, help="Number of frames to log")
 
+    # Input file names (relative to --data_root, or absolute paths)
+    parser.add_argument("--annotation", type=str, default="annotation.hdf5", help="Annotation HDF5 file name")
+    parser.add_argument("--stereo_left", type=str, default="stereo_left.mp4", help="Stereo left video file name")
+    parser.add_argument("--stereo_right", type=str, default="stereo_right.mp4", help="Stereo right video file name")
+    parser.add_argument("--fisheye_pattern", type=str, default="fisheye_{cam}.mp4", help="Fisheye video file name pattern ('{cam}' -> cam0..cam3)")
+
     # show_* (align with run_vis.py)
     parser.add_argument("--show_fisheye", action="store_true", default=True, help="Show fisheye camera images")
     parser.add_argument("--show_stereo", action="store_true", default=True, help="Show stereo camera images")
@@ -76,6 +82,7 @@ def main():
     _sec = lambda s: _c(s, "32")   # green
     order = [
         "data_root", "output_rrd", "num_frames",
+        "annotation", "stereo_left", "stereo_right", "fisheye_pattern",
         "show_stereo", "show_fisheye", "show_depth_colormap", "show_depth_points",
         "show_skeleton", "show_frustum", "show_contacts", "show_imu", "show_caption", "show_slam_pc",
     ]
@@ -89,7 +96,7 @@ def main():
             print(f"  {_key(k)}: {_val(args_dict[k])}")
 
     data_root = Path(args.data_root)
-    annotation_path = data_root / "annotation.hdf5"
+    annotation_path = data_root / args.annotation
     if not annotation_path.exists():
         print(f"Annotation not found: {annotation_path}")
         sys.exit(1)
@@ -238,8 +245,8 @@ def main():
 
     rr.set_time("stable_time", duration=0)
 
-    stereo_left_path = str(data_root / "stereo_left.mp4") if args.show_stereo and (data_root / "stereo_left.mp4").exists() else None
-    stereo_right_path = str(data_root / "stereo_right.mp4") if args.show_stereo and (data_root / "stereo_right.mp4").exists() else None
+    stereo_left_path = str(data_root / args.stereo_left) if args.show_stereo and (data_root / args.stereo_left).exists() else None
+    stereo_right_path = str(data_root / args.stereo_right) if args.show_stereo and (data_root / args.stereo_right).exists() else None
 
     # AssetVideo + VideoFrameReference: avoid decoding every frame (same as run_vis.py), much faster.
     stereo_left_asset = None
@@ -277,7 +284,7 @@ def main():
 
     if args.show_fisheye:
         for cid in ["cam0", "cam1", "cam2", "cam3"]:
-            vpath = data_root / f"fisheye_{cid}.mp4"
+            vpath = data_root / args.fisheye_pattern.format(cam=cid)
             if vpath.exists():
                 vstr = str(vpath.resolve())
                 cap = cv2.VideoCapture(vstr)
