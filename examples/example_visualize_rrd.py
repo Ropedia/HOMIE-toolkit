@@ -66,10 +66,12 @@ def main():
     parser.add_argument("--show_imu", action=argparse.BooleanOptionalAction, default=True, help="Show IMU accel/gyro time series")
     parser.add_argument("--show_caption", action=argparse.BooleanOptionalAction, default=True, help="Show caption panels (from annotation.hdf5 caption/captions dataset only)")
     parser.add_argument("--show_slam_pc", action=argparse.BooleanOptionalAction, default=True, help="Show SLAM point cloud (static)")
+    parser.add_argument("--fps", type=float, default=10.0, help="Base frame rate (fps) used to log frames on the timeline")
     
     args = parser.parse_args()
 
-    FPS = 10.0
+    FPS = args.fps
+    print(f"\033[32mLogging at {FPS:g} fps\033[0m")
     LOG_IMAGE_SCALE = 0.5
     MAX_DEPTH_POINTS = 20000
     NEAR_PLANE = 0.6
@@ -85,6 +87,7 @@ def main():
         "annotation", "stereo_left", "stereo_right", "fisheye_pattern",
         "show_stereo", "show_fisheye", "show_depth_colormap", "show_depth_points",
         "show_skeleton", "show_frustum", "show_contacts", "show_imu", "show_caption", "show_slam_pc",
+        "fps",
     ]
     args_dict = vars(args)
     print(_sec("Arguments:"))
